@@ -8,19 +8,19 @@ from RoboticArmClass import RoboticArm
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 server_address_pal = ('192.168.0.205', 9090)
-server_address_ang = ('192.168.0.93',9090)
-server_address_light_pal = ('localhost',8888)
-server_address_light_ang = ('localhost',8888)
-#server_address = ('192.168.0.208', 9090)
-#sock.bind(server_address)
+server_address_ang = ('192.168.0.84',9090)
+server_address_light_pal = ('192.168.137.12',8888)
+server_address_light_ang = ('192.168.137.13',8888)
+server_address = ('192.168.0.122', 9090)
+sock.bind(server_address)
 gripper = '0'
 vacuum = '0'
 pal_status = -1
 ang_status = -1
 pal_point = 'p:200:0:200:0'
 ang_point = 'g:250:250:100:0'
-pal_light = ['l1','1','1','1','1','#']
-ang_light = ['l2','1','1','1','1','#']
+pal_light = ['l','1','0','0','0','#']
+ang_light = ['l','1','0','0','0','#']
 
 def read_udp_feedback(thread_name, delay):
     global pal_status,ang_status
@@ -36,7 +36,7 @@ def read_udp_feedback(thread_name, delay):
 
 def palletizer_point_remap(msg):
     global pal_status, pal_point
-    str_cmd = 'p:' + msg.point.replace(' ',':')
+    str_cmd = 'p:' + msg.point.replace(' ',':')+':0'
     pal_point = str_cmd
     str_cmd = str_cmd +':'+vacuum+'#'
     sent = sock.sendto(str.encode(str_cmd), server_address_pal)
@@ -107,13 +107,13 @@ def set_ang_green(msg):
 
 def set_ang_yellow(msg):
     global ang_light
-    ang_light[2] = str(int(msg.data))
+    ang_light[4] = str(int(msg.data))
     sock.sendto(str.encode(':'.join(ang_light)),server_address_light_ang)
     return True, 'success'
 
 def set_ang_blue(msg):
     global ang_light
-    ang_light[4] = str(int(msg.data))
+    ang_light[2] = str(int(msg.data))
     sock.sendto(str.encode(':'.join(ang_light)),server_address_light_ang )
     return True, 'success'
 
@@ -131,19 +131,21 @@ def set_pal_green(msg):
 
 def set_pal_yellow(msg):
     global pal_light
-    pal_light[2] = str(int(msg.data))
+    pal_light[4] = str(int(msg.data))
     sock.sendto(str.encode(':'.join(pal_light)),server_address_light_pal)
     return True, 'success'
 
 def set_pal_blue(msg):
     global pal_light
-    pal_light[4] = str(int(msg.data))
+    pal_light[2] = str(int(msg.data))
     sock.sendto(str.encode(':'.join(pal_light)),server_address_light_pal)
     return True, 'success'
 
 if __name__ == '__main__':
     rospy.init_node('ros_udp')
     _thread.start_new_thread( read_udp_feedback, ("Thread-1", 0.1))
+    sock.sendto(str.encode(':'.join(pal_light)),server_address_light_pal)
+    sock.sendto(str.encode(':'.join(ang_light)),server_address_light_ang )
     rospy.Service('/palletizer_robot/cmd_point',point_cmd,palletizer_point_remap)
     rospy.Service('/palletizer_robot/vacuum',SetBool,palletizer_vacuum_remap)
     rospy.Service('/angle_robot/cmd_point',point_cmd,angle_point_remap)
