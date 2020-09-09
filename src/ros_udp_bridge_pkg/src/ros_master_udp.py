@@ -15,7 +15,7 @@ vacuum = '0'
 pal_status = -1
 ang_status = -1
 pal_point = 'p:200:0:200:0'
-ang_point = 'g:250:250:100:0'
+ang_point = 'g:200:0:100:0'
 pal_light = ['l','1','0','0','0','#']
 ang_light = ['l','1','0','0','0','#']
 
@@ -142,12 +142,12 @@ def set_pal_blue(msg):
 def init_udp_param():
     global server_address_pal,server_address_ang,server_address_light_pal,server_address_light_ang,server_address
     THIS_FOLDER = os.path.dirname(os.path.abspath(__file__))
-    config_file = os.path.join(THIS_FOLDER, 'config.json')
+    config_file = os.path.join(THIS_FOLDER, 'config_r.json')
     if config_file==None:
         return False
     with open(config_file) as json_file:
         data = json.load(json_file)
-        server_address = ('',data['input_server_port'])
+        server_address = (data['server_address'],data['input_server_port'])
         server_address_pal = (data['pal_address'],data['pal_port'])
         server_address_ang = (data['ang_address'],data['ang_port'])
         server_address_light_ang = (data['ang_light_address'],data['ang_light_port'])

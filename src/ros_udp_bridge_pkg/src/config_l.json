@@ -1,7 +1,8 @@
 {
 	"input_server_port":9090,
-	"ang_address":"192.168.0.84",
-	"pal_address":"192.168.0.205",
+	"ang_address":"192.168.137.23",
+	"pal_address":"192.168.137.22",
+	"server_address":"192.168.137.1",
 	"ang_port":9090,
 	"pal_port":9090,
 	"ang_light_address":"192.168.137.13",
