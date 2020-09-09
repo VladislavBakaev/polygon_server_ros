@@ -4,15 +4,12 @@ import socket
 from inverse_problem_srv.srv import point_cmd,point_cmdResponse
 from std_srvs.srv import SetBool
 import _thread
+import os
+import json
 from RoboticArmClass import RoboticArm
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-server_address_pal = ('192.168.0.205', 9090)
-server_address_ang = ('192.168.0.84',9090)
-server_address_light_pal = ('192.168.137.12',8888)
-server_address_light_ang = ('192.168.137.13',8888)
-server_address = ('192.168.0.122', 9090)
-sock.bind(server_address)
+server_address_pal = server_address_ang = server_address_light_pal = server_address_light_ang = server_address = 0
 gripper = '0'
 vacuum = '0'
 pal_status = -1
@@ -23,7 +20,8 @@ pal_light = ['l','1','0','0','0','#']
 ang_light = ['l','1','0','0','0','#']
 
 def read_udp_feedback(thread_name, delay):
-    global pal_status,ang_status
+    global pal_status,ang_status,server_address
+    sock.bind(server_address)
     while True:
         data, address = sock.recvfrom(4)
         if not data == None:
@@ -141,9 +139,26 @@ def set_pal_blue(msg):
     sock.sendto(str.encode(':'.join(pal_light)),server_address_light_pal)
     return True, 'success'
 
+def init_udp_param():
+    global server_address_pal,server_address_ang,server_address_light_pal,server_address_light_ang,server_address
+    THIS_FOLDER = os.path.dirname(os.path.abspath(__file__))
+    config_file = os.path.join(THIS_FOLDER, 'config.json')
+    if config_file==None:
+        return False
+    with open(config_file) as json_file:
+        data = json.load(json_file)
+        server_address = ('',data['input_server_port'])
+        server_address_pal = (data['pal_address'],data['pal_port'])
+        server_address_ang = (data['ang_address'],data['ang_port'])
+        server_address_light_ang = (data['ang_light_address'],data['ang_light_port'])
+        server_address_light_pal = (data['pal_light_address'],data['pal_light_port'])
+    return True
+
 if __name__ == '__main__':
     rospy.init_node('ros_udp')
+    init_udp_param()
     _thread.start_new_thread( read_udp_feedback, ("Thread-1", 0.1))
+    print(server_address_pal,server_address_ang,server_address_light_pal,server_address_light_ang,server_address)
     sock.sendto(str.encode(':'.join(pal_light)),server_address_light_pal)
     sock.sendto(str.encode(':'.join(ang_light)),server_address_light_ang )
     rospy.Service('/palletizer_robot/cmd_point',point_cmd,palletizer_point_remap)
