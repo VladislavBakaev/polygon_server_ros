@@ -27,8 +27,8 @@ class RoboticArm:
         self.__joint_3_u = 1.57
         self.__joint_4_l = -1.57
         self.__joint_4_u = 1.17
-        self.__joint_5_l = -2.60
-        self.__joint_5_u = 2.60
+        self.__joint_5_l = -3.14
+        self.__joint_5_u = 3.14
 
     def DirectProblem(self,q1,q2,q3,q4,q5):
 

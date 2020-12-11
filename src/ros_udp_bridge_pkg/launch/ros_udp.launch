@@ -1,3 +1,4 @@
 <launch>
 	<node name="ros_udp" pkg="ros_udp_bridge_pkg" type="ros_master_udp.py" output = "screen"/>
+	<node name="motorcortex_proxy" pkg="ros_udp_bridge_pkg" type="motorcortex_proxy.py" output = "screen"/>
 </launch>
