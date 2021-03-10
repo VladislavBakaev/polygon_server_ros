@@ -39,11 +39,15 @@ def angle_point_remap(msg):
     global ang_status, ang_point
     print("new msg for angle: %s"%msg.point)
     cmd = list(map(float,msg.point.split()))
+    if len(cmd) < 4:
+        raise Exception('Invalid command format to control the angle manipulator')
+
     roboticArm = RoboticArm()
     availJointState,goalJointState = roboticArm.InversProblem(cmd[0],cmd[1],cmd[2],-1.57,cmd[3])
     if(not availJointState):
         print('unreacheble')
         return False
+
     str_cmd = msg.point.replace(' ',':')
     if(str_cmd == ang_point):
         return True
@@ -91,6 +95,9 @@ def angle_gripper_remap(msg):
 def palletizer_point_remap(msg):
     global pal_status, pal_point
     print("new palletizer point: %s"%msg.point)
+    cmd = list(map(float,msg.point.split()))
+    if len(cmd) < 3:
+        raise Exception('Invalid command format to control the palletizer')
     str_cmd = msg.point.replace(' ',':')+':0'
     if(pal_point==str_cmd):
         return True
