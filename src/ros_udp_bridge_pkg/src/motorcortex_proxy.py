@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import rospy
+import rospkg
 import numpy as np
 import cv2
 
@@ -55,9 +56,10 @@ if __name__ == '__main__':
 
 
 	# Open request connection
-	dir_path = os.path.dirname(os.path.realpath(__file__))
+	rospack = rospkg.RosPack()
+	pkg_path = rospack.get_path('ros_udp_bridge_pkg')
 	req_, sub_ = motorcortex.connect("ws://192.168.42.1:5558:5557", motorcortex.MessageTypes(), motorcortex.ParameterTree(),
-	                               certificate=dir_path+"/motorcortex.crt", timeout_ms=1000,
+	                               certificate=pkg_path+"/config/motorcortex.crt", timeout_ms=1000,
 	                               login="root", password="vectioneer")
 	req = req_
 

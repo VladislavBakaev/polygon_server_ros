@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import rospy
+import rospkg
 import socket
 import _thread
 import os
@@ -247,8 +248,11 @@ def read_udp_feedback(angle_arm_controller, palletizer_arm_controller, address_d
         rospy.sleep(0.1)
 
 def init_udp_param() -> dict:
-    THIS_FOLDER = os.path.dirname(os.path.abspath(__file__))
-    config_file = os.path.join(THIS_FOLDER, 'config_1.json')
+
+    rospack = rospkg.RosPack()
+    pkg_path = rospack.get_path('ros_udp_bridge_pkg')
+    config_file = os.path.join(pkg_path,'config','config_1.json')
+
     if config_file==None:
         return False
     with open(config_file) as json_file:
@@ -258,6 +262,7 @@ def init_udp_param() -> dict:
         server_address_ang = (data['ang_address'],data['ang_port'])
         server_address_light_ang = (data['ang_light_address'],data['ang_light_port'])
         server_address_light_pal = (data['pal_light_address'],data['pal_light_port'])
+
     return {'pal_address':server_address_pal,\
             'ang_address':server_address_ang,\
             'pal_light_address':server_address_light_pal,\
