@@ -36,7 +36,7 @@ class AngleRobotControl():
             if len(cmd) != 4:
                 raise Exception("Invalid count of coordinate")
         except Exception as e:
-            rospy.logerr('Invalide command. Error {0}'.format(e))
+            rospy.logerr('Invalide command for angle robot. Error {0}'.format(e))
             return False
         
         rospy.loginfo('New command for angle robot: {0}'.format(msg.point))
@@ -45,7 +45,8 @@ class AngleRobotControl():
 
         result, _ = self.armSolver.InversProblem(cmd[0], cmd[1], cmd[2], -1.57, cmd[3])
         if not result:
-            rospy.loginfo('No solution can"t be find for point{0}'.format(msg.point))
+            rospy.logerr('No solution can"t be find for point (angle robot): {0}'.format(msg.point))
+            return False
 
         cmd[2], cmd[3] = cmd[3], cmd[2]
         
@@ -54,7 +55,7 @@ class AngleRobotControl():
         rospy.sleep(0.3)
         while self.status == 1:
             rospy.sleep(0.5)
-            rospy.loginfo("Wait...")
+            rospy.loginfo("Wait (angle robot) ...")
 
         rospy.sleep(1.0)
         self.current_point = cmd
@@ -64,10 +65,12 @@ class AngleRobotControl():
         cmd = msg.data
         self.sendGripperCmd(cmd)
 
+        rospy.loginfo('New cmd for gripper (angle robot): {0}'.format(cmd))
+
         rospy.sleep(0.5)
         while self.status == 1:
             rospy.sleep(0.3)
-            rospy.loginfo("Wait...")
+            rospy.loginfo("Wait (angle robot) ...")
 
         self.current_gripper = int(cmd)
         return True, 'Success'
@@ -126,21 +129,22 @@ class PalletizerRobotControl():
             if len(cmd) != 3:
                 raise Exception("Invalid count of coordinate")
         except Exception as e:
-            rospy.logerr('Invalide command. Error {0}'.format(e))
+            rospy.logerr('Invalide command for palletizer robot. Error {0}'.format(e))
             return False
         
         rospy.loginfo('New command for palletizer robot: {0}'.format(msg.point))
 
         result, _ = self.armSolver.InversProblem(cmd[0], cmd[1], cmd[2])
         if not result:
-            rospy.loginfo('No solution can"t be find for point{0}'.format(msg.point))
+            rospy.logerr('No solution can"t be find for point (palletizer robot): {0}'.format(msg.point))
+            return False
         
         self.sendArmCmd(cmd)
         self.status = 1
         rospy.sleep(0.3)
         while self.status == 1:
             rospy.sleep(0.5)
-            rospy.loginfo("Wait...")
+            rospy.loginfo("Wait (palletizer robot) ...")
 
         rospy.sleep(1.0)
         self.current_point = cmd
@@ -150,10 +154,12 @@ class PalletizerRobotControl():
         cmd = msg.data
         self.sendGripperCmd(cmd)
 
+        rospy.loginfo('New cmd for vacuum (palletizer robot): {0}'.format(cmd))
+
         rospy.sleep(0.5)
         while self.status == 1:
             rospy.sleep(0.3)
-            rospy.loginfo("Wait...")
+            rospy.loginfo("Wait (palletizer robot) ...")
 
         rospy.sleep(0.5)
         self.current_gripper = int(cmd)

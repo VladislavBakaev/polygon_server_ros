@@ -66,5 +66,4 @@ class RoboticArm:
             q = (alpha1,alpha2,alpha3-pi/2,pitch)
             return True,q
         except Exception as e:
-            print (e)
             return False, (0,0,0,0)
