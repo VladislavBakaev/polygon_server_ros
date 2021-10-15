@@ -1,188 +1,246 @@
 #!/usr/bin/env python3
 import rospy
 import socket
-from inverse_problem_srv.srv import point_cmd,point_cmdResponse
-from std_srvs.srv import SetBool
 import _thread
 import os
 import json
-from RoboticArmClass import RoboticArm
+from math import pi
+import time
 
-sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-server_address_pal = server_address_ang = server_address_light_pal = server_address_light_ang = server_address = 0
-gripper = '0'
-vacuum = '0'
-ang_status = -1
-grip_status = -1
-pal_status = -1
-vacuum_status = -1
-ang_point = '0:190:170:1.57'
-pal_point = '0:-250:80:0'
-pal_light = ['l','1','0','0','0','#']
-ang_light = ['l','1','0','0','0','#']
+from inverse_problem_srv.srv import point_cmd
+from std_srvs.srv import SetBool
 
-def read_udp_feedback(thread_name, delay):
-    global ang_status,server_address,grip_status,pal_status,vacuum_status
+from RoboticArmClassAngle import RoboticArm as RoboticArmAngle
+from RoboticArmClassPalletizer import RoboticArm as RoboticArmPalletizer
+
+
+class AngleRobotControl():
+    def __init__(self, cmd_sock, address) -> None:
+
+        rospy.Service('/angle_robot/cmd_point',point_cmd,self.armCmdCb)
+        rospy.Service('/angle_robot/gripper_cmd',SetBool,self.gripperCmdCb)
+        self.armSolver = RoboticArmAngle()
+        self.current_point = [190, 0, 0, 100]
+        self.current_gripper = 0
+        self.cmd_sock = cmd_sock
+        self.address = address
+        self.feedbackData(True)
+        self.status = 0
+        self.sendArmCmd(self.current_point)
+        self.last_status_update = time.time()
+        rospy.Timer(rospy.Duration(1.0),self.checkArm)
+
+    def armCmdCb(self, msg) -> bool:
+        try:
+            cmd = list(map(float,msg.point.split(' ')))
+            if len(cmd) != 4:
+                raise Exception("Invalid count of coordinate")
+        except Exception as e:
+            rospy.logerr('Invalide command. Error {0}'.format(e))
+            return False
+        
+        rospy.loginfo('New command for angle robot: {0}'.format(msg.point))
+
+        cmd[3] = cmd[3]*180.0/pi
+
+        result, _ = self.armSolver.InversProblem(cmd[0], cmd[1], cmd[2], -1.57, cmd[3])
+        if not result:
+            rospy.loginfo('No solution can"t be find for point{0}'.format(msg.point))
+
+        cmd[2], cmd[3] = cmd[3], cmd[2]
+        
+        self.sendArmCmd(cmd)
+        self.status = 1
+        rospy.sleep(0.3)
+        while self.status == 1:
+            rospy.sleep(0.5)
+            rospy.loginfo("Wait...")
+
+        rospy.sleep(1.0)
+        self.current_point = cmd
+        return True
+
+    def gripperCmdCb(self, msg)->bool:
+        cmd = msg.data
+        self.sendGripperCmd(cmd)
+
+        rospy.sleep(0.5)
+        while self.status == 1:
+            rospy.sleep(0.3)
+            rospy.loginfo("Wait...")
+
+        self.current_gripper = int(cmd)
+        return True, 'Success'
+
+    def sendArmCmd(self, cmd)->None:
+        cmd_srt_list = list(map(str,cmd+[self.current_gripper]))
+        cmd_srt = 'g:' + ':'.join(cmd_srt_list) + '#'
+        self.cmd_sock.sendto(cmd_srt.encode(), self.address)
+
+    def sendGripperCmd(self, cmd)->None:
+        if not cmd:
+            gripperCmd='1'
+        else:
+            gripperCmd='0'
+        
+        cmd_srt_list = list(map(str,self.current_point+[gripperCmd]))
+        cmd_srt = 'g:' + ':'.join(cmd_srt_list) + '#'
+        self.cmd_sock.sendto(cmd_srt.encode(), self.address)
+
+    def setArmStatus(self, status)->None:
+        self.status = status
+        self.last_status_update = time.time()
+
+    def feedbackData(self, flag) -> None:
+        if flag:
+            cmd = 'r'
+        else:
+            cmd = 's'
+        self.cmd_sock.sendto(cmd.encode(), self.address)
+
+    def checkArm(self, event) -> None:
+        if ((time.time() - self.last_status_update)>5.0):
+            rospy.logerr('Angle manipulator not respose')
+            self.feedbackData(True)
+
+
+class PalletizerRobotControl():
+    def __init__(self, cmd_sock, address) -> None:
+
+        rospy.Service('/palletizer_robot/cmd_point',point_cmd,self.armCmdCb)
+        rospy.Service('/palletizer_robot/vacuum',SetBool,self.gripperCmdCb)
+        self.armSolver = RoboticArmPalletizer()
+        self.current_point = [190, 0, 100] # change
+        self.current_gripper = 0
+        self.cmd_sock = cmd_sock
+        self.address = address
+        self.feedbackData(True)
+        self.status = 0
+        self.sendArmCmd(self.current_point)
+        self.last_status_update = time.time()
+        rospy.Timer(rospy.Duration(1.0),self.checkArm)
+
+    def armCmdCb(self, msg) -> bool:
+        try:
+            cmd = list(map(float,msg.point.split(' ')))
+            if len(cmd) != 3:
+                raise Exception("Invalid count of coordinate")
+        except Exception as e:
+            rospy.logerr('Invalide command. Error {0}'.format(e))
+            return False
+        
+        rospy.loginfo('New command for palletizer robot: {0}'.format(msg.point))
+
+        result, _ = self.armSolver.InversProblem(cmd[0], cmd[1], cmd[2])
+        if not result:
+            rospy.loginfo('No solution can"t be find for point{0}'.format(msg.point))
+        
+        self.sendArmCmd(cmd)
+        self.status = 1
+        rospy.sleep(0.3)
+        while self.status == 1:
+            rospy.sleep(0.5)
+            rospy.loginfo("Wait...")
+
+        rospy.sleep(1.0)
+        self.current_point = cmd
+        return True
+
+    def gripperCmdCb(self, msg)->bool:
+        cmd = msg.data
+        self.sendGripperCmd(cmd)
+
+        rospy.sleep(0.5)
+        while self.status == 1:
+            rospy.sleep(0.3)
+            rospy.loginfo("Wait...")
+
+        rospy.sleep(0.5)
+        self.current_gripper = int(cmd)
+        return True, 'Success'
+
+    def sendArmCmd(self, cmd)->None:
+        cmd_srt_list = list(map(str,cmd+[self.current_gripper]))
+        cmd_srt = 'p:' + ':'.join(cmd_srt_list) + '#'
+        self.cmd_sock.sendto(cmd_srt.encode(), self.address)
+
+    def sendGripperCmd(self, cmd)->None:
+        if cmd:
+            gripperCmd='1'
+        else:
+            gripperCmd='0'
+        
+        cmd_srt_list = list(map(str,self.current_point+[gripperCmd]))
+        cmd_srt = 'p:' + ':'.join(cmd_srt_list) + '#'
+        self.cmd_sock.sendto(cmd_srt.encode(), self.address)
+
+    def setArmStatus(self, status)->None:
+        self.status = status
+        self.last_status_update = time.time()
+
+    def feedbackData(self, flag) -> None:
+        if flag:
+            cmd = 'r'
+        else:
+            cmd = 's'
+        self.cmd_sock.sendto(cmd.encode(), self.address)
+
+    def checkArm(self, event) -> None:
+        if ((time.time() - self.last_status_update)>5.0):
+            rospy.logerr('Palletizer manipulator not respose')
+            self.feedbackData(True)
+
+
+class LightControl():
+    def __init__(self, robot_name, sock, address) -> None:
+        rospy.Service('/'+robot_name+'/red_light',SetBool,self.setRedLightStateCb)
+        rospy.Service('/'+robot_name+'/green_light',SetBool,self.setGreenLightStateCb)
+        rospy.Service('/'+robot_name+'/yellow_light',SetBool,self.setYellowLightStateCb)
+        rospy.Service('/'+robot_name+'/blue_light',SetBool,self.setBlueLightStateCb)
+
+        self.sock = sock
+        self.address = address
+        self.light_state = ['l','1','0','0','0','#']
+
+    def setRedLightStateCb(self, msg):
+        self.light_state[1] = str(int(msg.data))
+        self.sendLightState()
+        return True, 'success'
+
+    def setGreenLightStateCb(self, msg):
+        self.light_state[3] = str(int(msg.data))
+        self.sendLightState()
+        return True, 'success'
+
+    def setYellowLightStateCb(self, msg):
+        self.light_state[4] = str(int(msg.data))
+        self.sendLightState()
+        return True, 'success'
+
+    def setBlueLightStateCb(self, msg):
+        self.light_state[2] = str(int(msg.data))
+        self.sendLightState()
+        return True, 'success'
+    
+    def sendLightState(self):
+        self.sock.sendto(str.encode(':'.join(self.light_state)),self.address)
+
+
+def read_udp_feedback(angle_arm_controller, palletizer_arm_controller, address_dict) -> None:
+
     while True:
-        data, address = sock.recvfrom(4)
+        data, address = sock.recvfrom(512)
         if not data == None:
             data = data.decode()
-            if(data[0] == 'a'):
-                ang_status = int(data[2:])
-            if(data[0] == 'g'):
-                grip_status = int(data[2:])
-            if(data[0] == 'p'):
-                pal_status = int(data[2:])
-        rospy.sleep(delay)
+            if(address == address_dict['ang_address']):
+                status = int(data.split(':')[2])
+                angle_arm_controller.setArmStatus(status)
+            if(address == address_dict['pal_address']):
+                status = int(data.split(':')[2])
+                palletizer_arm_controller.setArmStatus(status)
+        rospy.sleep(0.1)
 
-def angle_point_remap(msg):
-    global ang_status, ang_point
-    print("new msg for angle: %s"%msg.point)
-    cmd = list(map(float,msg.point.split()))
-    if len(cmd) < 4:
-        raise Exception('Invalid command format to control the angle manipulator')
-
-    roboticArm = RoboticArm()
-    availJointState,goalJointState = roboticArm.InversProblem(cmd[0],cmd[1],cmd[2],-1.57,cmd[3])
-    if(not availJointState):
-        print('unreacheble')
-        return False
-
-    str_cmd = msg.point.replace(' ',':')
-    if(str_cmd == ang_point):
-        return True
-    ang_point = str_cmd
-    str_cmd = 'a:'+str_cmd
-    sent = sock.sendto(str.encode(str_cmd), server_address_ang)
-    ang_status = -1
-    rospy.sleep(3.0)
-    result = False
-    start_time = rospy.get_time()
-    while True:
-        if(ang_status == 0):
-            result = True
-            ang_status = -1
-            break
-        if(rospy.get_time()-start_time>10):
-            sent = sock.sendto(str.encode(str_cmd), server_address_ang)
-            start_time = rospy.get_time()
-        else:
-            rospy.sleep(0.01)
-    return result
-
-def angle_gripper_remap(msg):
-    global gripper,grip_status
-    gripper_new = str(int(not msg.data))
-    print('new gripper cmd: %s'%gripper_new)
-    if(gripper_new == gripper):
-        return True, 'Success'
-    else:
-        gripper = gripper_new
-    str_cmd = 'g:'+gripper
-    sent = sock.sendto(str.encode(str_cmd), server_address_ang)
-    grip_status = -1
-    rospy.sleep(2.0)
-    result = False
-    while True:
-        if(grip_status == 0):
-            result = True
-            grip_status = -1
-            break
-        else:
-            rospy.sleep(0.01)
-    return True, 'Success'
-
-def palletizer_point_remap(msg):
-    global pal_status, pal_point
-    print("new palletizer point: %s"%msg.point)
-    cmd = list(map(float,msg.point.split()))
-    if len(cmd) < 3:
-        raise Exception('Invalid command format to control the palletizer')
-    str_cmd = msg.point.replace(' ',':')+':0'
-    if(pal_point==str_cmd):
-        return True
-    else:
-        pal_point = str_cmd
-    str_cmd = "p:" + str_cmd
-    sent = sock.sendto(str.encode(str_cmd), server_address_pal)
-    rospy.sleep(3.0)
-    result = False
-    while True:
-        if(pal_status == 1):
-            result = True
-            pal_status = -1
-            break
-        if(pal_status == 0):
-            result = False
-            pal_status = -1
-            break
-        else:
-            rospy.sleep(0.2)
-    return result
-
-def palletizer_vacuum_remap(msg):
-    global vacuum
-    vacuum_new = str(int(msg.data))
-    print("new vacuum: %s"%vacuum_new)
-    if(vacuum_new == vacuum):
-        return True, 'Success'
-    else:
-        vacuum = vacuum_new
-    str_cmd = 'v:'+vacuum
-    sent = sock.sendto(str.encode(str_cmd), server_address_pal)
-    rospy.sleep(2.0)
-    return True, 'Success'
-
-def set_ang_red(msg):
-    global ang_light
-    ang_light[1] = str(int(msg.data))
-    sock.sendto(str.encode(':'.join(ang_light)),server_address_light_ang)
-    return True, 'success'
-
-def set_ang_green(msg):
-    global ang_light
-    ang_light[3] = str(int(msg.data))
-    sock.sendto(str.encode(':'.join(ang_light)),server_address_light_ang)
-    return True, 'success'
-
-def set_ang_yellow(msg):
-    global ang_light
-    ang_light[4] = str(int(msg.data))
-    sock.sendto(str.encode(':'.join(ang_light)),server_address_light_ang)
-    return True, 'success'
-
-def set_ang_blue(msg):
-    global ang_light
-    ang_light[2] = str(int(msg.data))
-    sock.sendto(str.encode(':'.join(ang_light)),server_address_light_ang )
-    return True, 'success'
-
-def set_pal_red(msg):
-    global pal_light
-    pal_light[1] = str(int(msg.data))
-    sock.sendto(str.encode(':'.join(pal_light)),server_address_light_pal)
-    return True, 'success'
-
-def set_pal_green(msg):
-    global pal_light
-    pal_light[3] = str(int(msg.data))
-    sock.sendto(str.encode(':'.join(pal_light)),server_address_light_pal)
-    return True, 'success'
-
-def set_pal_yellow(msg):
-    global pal_light
-    pal_light[4] = str(int(msg.data))
-    sock.sendto(str.encode(':'.join(pal_light)),server_address_light_pal)
-    return True, 'success'
-
-def set_pal_blue(msg):
-    global pal_light
-    pal_light[2] = str(int(msg.data))
-    sock.sendto(str.encode(':'.join(pal_light)),server_address_light_pal)
-    return True, 'success'
-
-def init_udp_param():
-    global server_address_pal,server_address_ang,server_address_light_pal,server_address_light_ang,server_address
+def init_udp_param() -> dict:
     THIS_FOLDER = os.path.dirname(os.path.abspath(__file__))
     config_file = os.path.join(THIS_FOLDER, 'config_1.json')
     if config_file==None:
@@ -194,30 +252,28 @@ def init_udp_param():
         server_address_ang = (data['ang_address'],data['ang_port'])
         server_address_light_ang = (data['ang_light_address'],data['ang_light_port'])
         server_address_light_pal = (data['pal_light_address'],data['pal_light_port'])
-    return True
+    return {'pal_address':server_address_pal,\
+            'ang_address':server_address_ang,\
+            'pal_light_address':server_address_light_pal,\
+            'ang_light_address':server_address_light_ang,\
+            'server_address':server_address}
 
 if __name__ == '__main__':
     rospy.init_node('ros_udp')
-    init_udp_param()
-    sock.bind(server_address)
-    _thread.start_new_thread( read_udp_feedback, ("read_udp_thread", 0.5))
-    print(server_address_pal,server_address_ang,server_address_light_pal,server_address_light_ang,server_address)
-    sock.sendto(str.encode(':'.join(pal_light)),server_address_light_pal)
-    sock.sendto(str.encode(':'.join(ang_light)),server_address_light_ang )
-    sock.sendto(str.encode('a:'+ang_point), server_address_ang)
-    sock.sendto(str.encode('p:'+pal_point), server_address_pal)
-    sock.sendto(b"v:0", server_address_pal)
-    sock.sendto(b"g:0", server_address_ang)
-    rospy.Service('/palletizer_robot/cmd_point',point_cmd,palletizer_point_remap)
-    rospy.Service('/palletizer_robot/vacuum',SetBool,palletizer_vacuum_remap)
-    rospy.Service('/angle_robot/cmd_point',point_cmd,angle_point_remap)
-    rospy.Service('/angle_robot/gripper_cmd',SetBool,angle_gripper_remap)
-    rospy.Service('/angle_robot/red_light',SetBool,set_ang_red)
-    rospy.Service('/angle_robot/green_light',SetBool,set_ang_green)
-    rospy.Service('/angle_robot/yellow_light',SetBool,set_ang_yellow)
-    rospy.Service('/angle_robot/blue_light',SetBool,set_ang_blue)
-    rospy.Service('/palletizer_robot/red_light',SetBool,set_pal_red)
-    rospy.Service('/palletizer_robot/green_light',SetBool,set_pal_green)
-    rospy.Service('/palletizer_robot/yellow_light',SetBool,set_pal_yellow)
-    rospy.Service('/palletizer_robot/blue_light',SetBool,set_pal_blue)
+
+    address_dict = init_udp_param()
+
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.bind(address_dict['server_address'])
+
+    angle_arm_controller = AngleRobotControl(sock, address_dict['ang_address'])
+    palletizer_arm_controller = PalletizerRobotControl(sock, address_dict['pal_address'])
+
+    angle_light_control = LightControl('angle_robot', sock, address_dict['ang_light_address'])
+    palletizer_light_control = LightControl('palletizer_robot', sock, address_dict['pal_light_address'])
+
+    _thread.start_new_thread(read_udp_feedback, (angle_arm_controller, palletizer_arm_controller, address_dict))
+
+    print('Connected to:', address_dict)
+
     rospy.spin()
