@@ -22,6 +22,7 @@ class AngleRobotControl():
         rospy.Service('/angle_robot/gripper_cmd',SetBool,self.gripperCmdCb)
         self.armSolver = RoboticArmAngle()
         self.current_point = [190, 0, 0, 100]
+        self.z_offset = 15
         self.current_gripper = 0
         self.cmd_sock = cmd_sock
         self.address = address
@@ -48,6 +49,8 @@ class AngleRobotControl():
         if not result:
             rospy.logerr('No solution can"t be find for point (angle robot): {0}'.format(msg.point))
             return False
+
+        cmd[2] += self.z_offset
 
         cmd[2], cmd[3] = cmd[3], cmd[2]
         
@@ -114,7 +117,8 @@ class PalletizerRobotControl():
         rospy.Service('/palletizer_robot/cmd_point',point_cmd,self.armCmdCb)
         rospy.Service('/palletizer_robot/vacuum',SetBool,self.gripperCmdCb)
         self.armSolver = RoboticArmPalletizer()
-        self.current_point = [190, 0, 100] # change
+        self.current_point = [170, 170, 250] # change
+        self.z_offset = 135
         self.current_gripper = 0
         self.cmd_sock = cmd_sock
         self.address = address
@@ -139,7 +143,7 @@ class PalletizerRobotControl():
         if not result:
             rospy.logerr('No solution can"t be find for point (palletizer robot): {0}'.format(msg.point))
             return False
-        
+        cmd[2] += self.z_offset
         self.sendArmCmd(cmd)
         self.status = 1
         rospy.sleep(0.3)
@@ -208,6 +212,7 @@ class LightControl():
         self.sock = sock
         self.address = address
         self.light_state = ['l','1','0','0','0','#']
+        self.sendLightState()
 
     def setRedLightStateCb(self, msg):
         self.light_state[1] = str(int(msg.data))
@@ -239,12 +244,13 @@ def read_udp_feedback(angle_arm_controller, palletizer_arm_controller, address_d
         data, address = sock.recvfrom(512)
         if not data == None:
             data = data.decode()
-            if(address == address_dict['ang_address']):
-                status = int(data.split(':')[2])
-                angle_arm_controller.setArmStatus(status)
-            if(address == address_dict['pal_address']):
-                status = int(data.split(':')[2])
-                palletizer_arm_controller.setArmStatus(status)
+            if data[0]!='#':
+                if(address == address_dict['ang_address']):
+                    status = int(data.split(':')[2])
+                    angle_arm_controller.setArmStatus(status)
+                if(address == address_dict['pal_address']):
+                    status = int(data.split(':')[2])
+                    palletizer_arm_controller.setArmStatus(status)
         rospy.sleep(0.1)
 
 def init_udp_param() -> dict:
