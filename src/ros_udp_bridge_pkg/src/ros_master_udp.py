@@ -260,7 +260,7 @@ def init_udp_param() -> dict:
 
     rospack = rospkg.RosPack()
     pkg_path = rospack.get_path('ros_udp_bridge_pkg')
-    config_file = os.path.join(pkg_path,'config','config_1.json')
+    config_file = os.path.join(pkg_path,'config','config_2.json')
 
     if config_file==None:
         return False

@@ -1,15 +1,15 @@
 {
-	"input_server_port":9090,
+	"input_server_port":8888,
 
-	"ang_address":"192.168.137.20",
-	"pal_address":"192.168.137.21",
-	"server_address":"192.168.137.1",
+	"ang_address":"10.90.90.19",
+	"pal_address":"10.90.90.21",
+	"server_address":"10.90.90.102",
 
-	"ang_port":9090,
-	"pal_port":9090,
-	
-	"ang_light_address":"192.168.137.10",
-	"pal_light_address":"192.168.137.11",
+	"ang_port":8888,
+	"pal_port":8888,
+
+	"ang_light_address":"10.90.90.20",
+	"pal_light_address":"10.90.90.22",
 	"ang_light_port":8888,
 	"pal_light_port":8888
 }
