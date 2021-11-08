@@ -21,8 +21,8 @@ class AngleRobotControl():
         rospy.Service('/angle_robot/cmd_point',point_cmd,self.armCmdCb)
         rospy.Service('/angle_robot/gripper_cmd',SetBool,self.gripperCmdCb)
         self.armSolver = RoboticArmAngle()
-        self.current_point = [190, 0, 0, 100]
-        self.z_offset = 15
+        self.current_point = [0, 190, 90, 100]
+        self.z_offset = 0
         self.current_gripper = 0
         self.cmd_sock = cmd_sock
         self.address = address
@@ -43,12 +43,13 @@ class AngleRobotControl():
         
         rospy.loginfo('New command for angle robot: {0}'.format(msg.point))
 
-        cmd[3] = cmd[3]*180.0/pi
 
         result, _ = self.armSolver.InversProblem(cmd[0], cmd[1], cmd[2], -1.57, cmd[3])
         if not result:
             rospy.logerr('No solution can"t be find for point (angle robot): {0}'.format(msg.point))
             return False
+
+        cmd[3] = cmd[3]*180.0/pi
 
         cmd[2] += self.z_offset
 
@@ -76,10 +77,12 @@ class AngleRobotControl():
             rospy.sleep(0.3)
             rospy.loginfo("Wait (angle robot) ...")
 
-        self.current_gripper = int(cmd)
+        self.current_gripper = int(not cmd)
+        print(self.current_gripper)
         return True, 'Success'
 
     def sendArmCmd(self, cmd)->None:
+        print(self.current_gripper)
         cmd_srt_list = list(map(str,cmd+[self.current_gripper]))
         cmd_srt = 'g:' + ':'.join(cmd_srt_list) + '#'
         self.cmd_sock.sendto(cmd_srt.encode(), self.address)
